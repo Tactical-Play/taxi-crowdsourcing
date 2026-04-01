@@ -1,2 +1,2 @@
 # taxi-crowdsourcing
-Hub selection algorithms for a crowdsourced taxi based package delivery
+Hub selection algorithms for crowdsourced taxi based package delivery
