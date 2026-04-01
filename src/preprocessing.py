@@ -78,7 +78,7 @@ def compute_forward_shortest_paths(G, S, threshold):
     i_count=0
     for source in S:
         i_count+=1
-        if i_count%100==0: print(f"Running Dijkstra for hub no. {i_count} of {len(S)}")
+        if i_count%10000==0: print(f"Running Dijkstra for hub no. {i_count} of {len(S)}")
         distances = dijkstra_forward(G, source, threshold)
         results[source] = distances
     return results
@@ -88,7 +88,7 @@ def compute_backward_shortest_paths(G, S, threshold):
     i_count=0
     for source in S:
         i_count+=1
-        if i_count%100==0: print(f"Running Dijkstra for hub no. {i_count} of {len(S)}")
+        if i_count%10000==0: print(f"Running Dijkstra for hub no. {i_count} of {len(S)}")
         distances = dijkstra_reverse(G, source, threshold)
         results[source] = distances
     return results
