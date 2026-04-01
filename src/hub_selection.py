@@ -97,10 +97,13 @@ def incremental_greedy(S, k, H0, T, OC, EC):
            EC (end coverage dict i.e Tj : {set of sites})
     Output: New hub locations H - H0
     """
-    global H, o, e, U, Phi
+    H = set()
+    o = {}
+    e = {}
+    U = {}
+    Phi = {}
 
-    # Initialize
-    initialize_ig(S, H0, T, OC, EC)
+    initialize_ig(S, H0, T, OC, EC, H, o, e, U, Phi)
 
     for _ in range(k):
         # Select s_theta with maximal U(s_theta), breaking ties with Phi(s_theta) and index
@@ -128,18 +131,17 @@ def incremental_greedy(S, k, H0, T, OC, EC):
         #it would be a good idea to delete utilities that won't be checked anymore
 
         # Update utilities
-        update_utilities_ig(T, s_theta, OC, EC)
+        update_utilities_ig(T, s_theta, OC, EC, H, o, e, U, Phi)
 
     return [s for s in H if s not in H0]
 
 
-def initialize_ig(S, H0, T, OC, EC):
+def initialize_ig(S, H0, T, OC, EC, H, o, e, U, Phi):
     """
     Algorithm 2: INITIALIZE-IG
     Input: S, H0, T, OC, EC
     Output: Mutates global H, o, e, U, Phi
     """
-    global H, o, e, U, Phi
 
     # Initialize U and Phi
     for s in S.union(H0):
@@ -160,13 +162,12 @@ def initialize_ig(S, H0, T, OC, EC):
         update_utilities_ig(T, s, OC, EC)
 
 
-def update_utilities_ig(T, s_theta, OC, EC):
+def update_utilities_ig(T, s_theta, OC, EC, H, o, e, U, Phi):
     """
     Algorithm 3: UPDATE-UTILITIES-IG
     Input: T, s_theta, OC, EC
     Output: Mutates global o, e, U, Phi
     """
-    global H, o, e, U, Phi, H0
 
     for tj in T:
         o_prev = o[tj]
