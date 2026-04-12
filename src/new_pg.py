@@ -1,10 +1,6 @@
 from collections import defaultdict
 from itertools import combinations
 
-# -------------------------------
-# PRECOMPUTATION
-# -------------------------------
-
 def build_reverse_index(T, OC, EC):
     OC_rev = defaultdict(set)
     EC_rev = defaultdict(set)
@@ -18,87 +14,47 @@ def build_reverse_index(T, OC, EC):
     return OC_rev, EC_rev
 
 
-def precompute_pair_trips(S, OC_rev, EC_rev):
+def compute_pair_gain(s1, s2, T, OC_rev, EC_rev, o, e):
     """
-    pair_to_trips[(s1,s2)] = affected trips
+    Compute gain of adding {s1, s2}
+    Only over affected trips
     """
-    pair_to_trips = {}
 
-    S_list = list(S)
+    affected = (
+        OC_rev[s1] | EC_rev[s1] |
+        OC_rev[s2] | EC_rev[s2]
+    )
 
-    # singles
-    for s in S_list:
-        pair_to_trips[(s,)] = OC_rev[s] | EC_rev[s]
+    gain = 0
 
-    # pairs
-    for s1, s2 in combinations(S_list, 2):
-        pair_to_trips[(s1, s2)] = (
-            OC_rev[s1] | EC_rev[s1] |
-            OC_rev[s2] | EC_rev[s2]
-        )
+    for tj in affected:
+        oj, ej = o[tj], e[tj]
 
-    return pair_to_trips
+        oj_new = oj or (s1 in OC_rev and tj in OC_rev[s1]) or (s2 in OC_rev and tj in OC_rev[s2])
+        ej_new = ej or (s1 in EC_rev and tj in EC_rev[s1]) or (s2 in EC_rev and tj in EC_rev[s2])
 
+        # simple gain condition (adjust if needed)
+        if oj == 0 and ej == 0 and (oj_new or ej_new):
+            gain += 1
 
-# -------------------------------
-# INITIALIZE U (PAIR GAINS)
-# -------------------------------
-
-def initialize_pair_gain(pair_to_trips, o, e):
-    U = {}
-
-    for pair, trips in pair_to_trips.items():
-
-        gain = 0
-
-        for tj in trips:
-            if o[tj] == 0 and e[tj] == 0:
-                gain += 1
-
-        U[pair] = gain
-
-    return U
+    return gain
 
 
-# -------------------------------
-# UPDATE AFTER SELECTING HUBS
-# -------------------------------
+def update_state(H_theta, OC_rev, EC_rev, o, e):
+    """
+    Update o,e using reverse index
+    """
 
-def update_after_selection(H_theta, pair_to_trips, U, o, e, OC_rev, EC_rev):
-
-    # 🔥 update o,e first
     for s in H_theta:
+
         for tj in OC_rev[s]:
             o[tj] = 1
+
         for tj in EC_rev[s]:
             e[tj] = 1
 
-    # 🔥 recompute U ONLY for affected pairs
-    affected_pairs = []
 
-    for s in H_theta:
-        for pair in pair_to_trips:
-            if s in pair:
-                affected_pairs.append(pair)
-
-    affected_pairs = set(affected_pairs)
-
-    for pair in affected_pairs:
-        trips = pair_to_trips[pair]
-
-        gain = 0
-        for tj in trips:
-            if o[tj] == 0 and e[tj] == 0:
-                gain += 1
-
-        U[pair] = gain
-
-
-# -------------------------------
-# MAIN ALGO
-# -------------------------------
-
-def pairwise_greedy(S, k, H0, T, OC, EC):
+def pairwise_greedy_optimized(S, k, H0, T, OC, EC):
 
     H = set(H0)
 
@@ -111,17 +67,11 @@ def pairwise_greedy(S, k, H0, T, OC, EC):
     e = [0] * max_tj
 
     # apply H0
-    for s in H0:
-        for tj in OC_rev[s]:
-            o[tj] = 1
-        for tj in EC_rev[s]:
-            e[tj] = 1
+    update_state(H0, OC_rev, EC_rev, o, e)
 
-    print("Precomputing pair → trips (heavy but one-time)...")
-    pair_to_trips = precompute_pair_trips(S, OC_rev, EC_rev)
-
-    print("Initializing pair gains...")
-    U = initialize_pair_gain(pair_to_trips, o, e)
+    # 🔥 precompute candidate pairs ONCE
+    S_list = list(S)
+    all_pairs = [(s,) for s in S_list] + list(combinations(S_list, 2))
 
     b = k
 
@@ -129,26 +79,36 @@ def pairwise_greedy(S, k, H0, T, OC, EC):
 
         print(f"iterations left = {b}")
 
-        # 🔥 filter valid candidates
-        candidates = [
-            p for p in U.keys()
-            if all(s not in H for s in p) and len(p) <= b
-        ]
+        best_gain = -1
+        best_choice = None
 
-        if not candidates:
+        # 🔥 iterate candidates lazily
+        for cand in all_pairs:
+
+            if any(s in H for s in cand):
+                continue
+
+            if len(cand) > b:
+                continue
+
+            if len(cand) == 1:
+                gain = compute_pair_gain(cand[0], cand[0], T, OC_rev, EC_rev, o, e)
+            else:
+                gain = compute_pair_gain(cand[0], cand[1], T, OC_rev, EC_rev, o, e)
+
+            if gain > best_gain:
+                best_gain = gain
+                best_choice = cand
+
+        if best_choice is None:
             break
 
-        # 🔥 best pair selection
-        best_pair = max(candidates, key=lambda p: U[p])
+        print("chosen:", best_choice, "gain:", best_gain)
 
-        print("chosen:", best_pair, "gain:", U[best_pair])
+        H_theta = set(best_choice)
 
-        H_theta = set(best_pair)
-
-        # 🔥 update
-        update_after_selection(
-            H_theta, pair_to_trips, U, o, e, OC_rev, EC_rev
-        )
+        # 🔥 update state efficiently
+        update_state(H_theta, OC_rev, EC_rev, o, e)
 
         H |= H_theta
         b -= len(H_theta)
