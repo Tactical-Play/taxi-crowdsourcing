@@ -1,0 +1,12 @@
+{
+    "num_hubs": 100,
+    "num_total_pkgs": 5000,
+    "num_servicable_pkgs": 2136,
+    "delivered": 1658,
+    "success_rate_24h": 0.773876404494382,
+    "success_rate_eod": 0.7602996254681648,
+    "total_success_rate": 0.7762172284644194,
+    "avg_delivery_time_hours": 7.739479061308136,
+    "avg_delivery_time_hours_24h": 7.688781203931236,
+    "avg_delivery_time_hours_EOD": 7.491455380985563
+}
