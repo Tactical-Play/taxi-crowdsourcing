@@ -57,7 +57,7 @@ def dijkstra_reverse(G, source, threshold):
 
     return distances
 
-def get_top_nodes_by_traffic(trip_dict, top_n=1000,threshold=3):
+def get_top_nodes_by_traffic(G,trip_dict, top_n=1000,threshold=3):
     node_counter = Counter()
     dijkstra_cache_start={}
     dijkstra_cache_end={}
