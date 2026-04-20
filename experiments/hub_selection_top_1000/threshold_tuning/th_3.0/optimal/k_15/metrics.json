@@ -3,8 +3,8 @@
     "k": 15,
     "num_trips": 123179,
     "trips_remaining": 9084,
-    "utility": 0,
-    "utility_percent": 0.0,
-    "elapsed_time_seconds": 14.029884815216064,
-    "elapsed_time_minutes": 0.2338314135869344
+    "utility": 8895,
+    "utility_percent": 7.221198418561605,
+    "elapsed_time_seconds": 14.191558361053467,
+    "elapsed_time_minutes": 0.23652597268422446
 }
