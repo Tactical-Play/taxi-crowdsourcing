@@ -1,12 +1,12 @@
 {
     "date": "2008-02-04",
     "num_hubs": 90,
-    "num_total_pkgs": 685,
-    "delivered": 655,
-    "success_rate_24h": 0.9562043795620438,
-    "success_rate_eod": 0.9562043795620438,
-    "total_success_rate": 0.9562043795620438,
-    "avg_delivery_time_hours": 5.75005672597413,
-    "avg_delivery_time_hours_24h": 5.75005672597413,
-    "avg_delivery_time_hours_EOD": 5.75005672597413
+    "num_total_pkgs": 673,
+    "delivered": 638,
+    "success_rate_24h": 0.9479940564635958,
+    "success_rate_eod": 0.9435364041604755,
+    "total_success_rate": 0.9479940564635958,
+    "avg_delivery_time_hours": 6.174642933877133,
+    "avg_delivery_time_hours_24h": 6.174642933877133,
+    "avg_delivery_time_hours_EOD": 6.131669574445757
 }
