@@ -2,9 +2,9 @@
     "algorithm": "incremental_greedy_v2",
     "k": 70,
     "num_trips": 123179,
-    "trips_remaining": 9084,
-    "utility": 15787,
-    "utility_percent": 12.816307974573588,
-    "elapsed_time_seconds": 7.994661569595337,
-    "elapsed_time_minutes": 0.1332443594932556
+    "trips_remaining": 100915,
+    "utility": 113044,
+    "utility_percent": 91.77213648430333,
+    "elapsed_time_seconds": 203.96953082084656,
+    "elapsed_time_minutes": 3.3994921803474427
 }
