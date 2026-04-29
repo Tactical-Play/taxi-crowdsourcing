@@ -127,12 +127,15 @@ def rank_nodes(link_graph, top_k=10000):
 # -------------------------------
 # HUB IDENTIFICATION (Algorithm 2)
 # -------------------------------
-def identify_hubs(G, ranked_nodes, threshold_km=3):
+def identify_hubs(G, ranked_nodes, threshold_km=3, max_hubs=None):
 
     hubs = []
     remaining = list(ranked_nodes)
 
     while remaining:
+        if max_hubs is not None and len(hubs) >= max_hubs:
+            print(f"Reached desired number of hubs: {max_hubs}")
+            break
         if len(hubs) % 100 == 0:
             print(f"Hubs selected: {len(hubs)}")
         v = remaining.pop(0)
@@ -152,5 +155,7 @@ def identify_hubs(G, ranked_nodes, threshold_km=3):
                 new_remaining.append(u)
 
         remaining = new_remaining
+        if max_hubs is not None and len(hubs) < max_hubs:
+          print(f"WARNING: Only {len(hubs)} hubs could be selected (target was {max_hubs})")
 
     return hubs
