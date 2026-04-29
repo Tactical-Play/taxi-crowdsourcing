@@ -1,0 +1,5 @@
+In the taxi_exp algo, short trips are not pruned. So when we measure the utility of the final selected set of hubs, we get a high number.
+For an apples to apples perspective, here is the utility of incremental greedy algorithm when applied on the same trips without pruning:
+k = 70
+Utility (fully covered trips): 113294
+Utility persentage :  91.97509315711282
