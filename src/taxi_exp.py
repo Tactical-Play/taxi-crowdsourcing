@@ -136,8 +136,8 @@ def identify_hubs(G, ranked_nodes, threshold_km=3, max_hubs=None):
         if max_hubs is not None and len(hubs) >= max_hubs:
             print(f"Reached desired number of hubs: {max_hubs}")
             break
-        if len(hubs) % 100 == 0:
-            print(f"Hubs selected: {len(hubs)}")
+        if len(hubs) % 100 == 0 and len(hubs)>0:
+            print(f"Hubs selected : {len(hubs)}")
         v = remaining.pop(0)
         hubs.append(v)
 
