@@ -4,5 +4,7 @@
     "num_trips": 123179,
     "trips_remaining": 87451,
     "utility": 118010,
-    "utility_percent": 95.80366783299101
+    "utility_percent": 95.80366783299101,
+    "elapsed_time_seconds": 191.0404498577118,
+    "elapsed_time_minutes": 3.1840074976285297
 }
