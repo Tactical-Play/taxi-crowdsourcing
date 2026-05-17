@@ -96,94 +96,168 @@ def solve_gurobi(S, H0, T, OC, EC, k, timelimit=None, verbose=True):
         print(f"Gurobi error: {err}")
         raise
 
+
+
+
+import os
 import json
 import gurobipy as gp
 from gurobipy import GRB
 
 
-def solve_for_gap_thresholds(
-    S, H0, T, OC, EC, k,
-    gaps=None,
-    verbose=False,
-    save_file="hub_results.jsonl"
-):
+def _gap_callback(model, where):
     """
-    Run Gurobi multiple times with different MIPGap values (descending),
-    using warm-start from previous solutions.
-
-    Saves each iteration immediately to disk.
-
-    Returns:
-        dict: gap -> solution dict
+    Callback that captures incumbent hub selections whenever
+    the MIP gap crosses specified thresholds.
     """
 
-    if gaps is None:
-        gaps = [i / 100 for i in range(10, 0, -1)]  # 0.10 → 0.01
+    if where != GRB.Callback.MIP:
+        return
 
-    results = {}
-    prev_x = None
+    try:
+        objbst = model.cbGet(GRB.Callback.MIP_OBJBST)
+        objbnd = model.cbGet(GRB.Callback.MIP_OBJBND)
 
-    # Clear/create output file
-    open(save_file, "w").close()
+        if objbst <= 0:
+            return
 
-    for gap in gaps:
+        gap = abs(objbst - objbnd) / abs(objbst)
 
-        print(f"\n==============================")
-        print(f"Solving with MIPGap = {gap*100:.0f}%")
-        print(f"==============================")
+        crossed = []
 
-        res = solve_gurobi_with_gap(
-            S, H0, T, OC, EC, k,
-            mipgap=gap,
-            warm_start=prev_x,
-            verbose=verbose
-        )
+        for th in model._remaining_thresholds:
+            if gap <= th:
+                crossed.append(th)
 
-        results[gap] = res
+        if not crossed:
+            return
 
-        # Update warm-start
-        prev_x = res.get("x", None)
+        sol = model.cbGetSolution(model._x_vars)
 
-        # Prepare serializable record
-        record = {
-            "gap": gap,
-            "status": int(res["status"]),
-            "objective": res["objval"],
-            "num_hubs": len(res["hubs"]),
-            "hubs": sorted(list(res["hubs"]))
-        }
+        selected_hubs = sorted([
+            i for i, val in sol.items()
+            if val > 0.5
+        ])
 
-        # Save immediately (append mode)
-        with open(save_file, "a") as f:
-            f.write(json.dumps(record) + "\n")
+        for th in crossed:
+            print(f"\n=== Captured solution at {th*100:.0f}% gap ===")
 
-        print(f"Saved results for gap={gap:.2f}")
+            record = {
+                "gap": th,
+                "objective": objbst,
+                "best_bound": objbnd,
+                "num_hubs": len(selected_hubs),
+                "hubs": selected_hubs
+            }
 
-        # Quick summary
-        print(f"Status: {res['status']}")
-        print(f"Objective: {res['objval']}")
-        print(f"#Hubs: {len(res['hubs'])}")
+            # -------------------------------------------------
+            # Append JSONL result immediately
+            # -------------------------------------------------
+            with open(model._results_file, "a") as f:
+                f.write(json.dumps(record) + "\n")
 
-    return results
+            # -------------------------------------------------
+            # Update checkpoint JSON
+            # -------------------------------------------------
+            checkpoint = {
+                "last_gap": th,
+                "objective": objbst,
+                "best_bound": objbnd,
+                "hubs": selected_hubs,
+                "x": {
+                    str(i): int(round(sol[i]))
+                    for i in sol
+                }
+            }
+
+            with open(model._checkpoint_file, "w") as f:
+                json.dump(checkpoint, f, indent=2)
+
+            # -------------------------------------------------
+            # Save MST checkpoint
+            # -------------------------------------------------
+            if model._mst_dir is not None:
+                mst_file = os.path.join(
+                    model._mst_dir,
+                    f"gap_{int(th*100)}.mst"
+                )
+
+                try:
+                    model.write(mst_file)
+                    print(f"MST saved: {mst_file}")
+                except Exception as err:
+                    print(f"Could not save MST: {err}")
+
+        model._remaining_thresholds = [
+            th for th in model._remaining_thresholds
+            if th not in crossed
+        ]
+
+    except Exception as err:
+        print(f"Callback error: {err}")
 
 
-def solve_gurobi_with_gap(
-    S, H0, T, OC, EC, k,
-    mipgap=0.01,
-    warm_start=None,
-    verbose=True
+def solve_gurobi_checkpointed(
+    S,
+    H0,
+    T,
+    OC,
+    EC,
+    k,
+    verbose=True,
+    checkpoint_file="gurobi_checkpoint.json",
+    results_file="hub_results.jsonl",
+    mst_dir="mst_checkpoints",
+    thresholds=None
 ):
+    """
+    Single-solve Gurobi optimization with callback checkpointing.
+
+    Captures hub selections at:
+        10%, 9%, ..., 1% MIP gap
+
+    Writes checkpoints immediately so crash recovery is possible.
+    """
+
+    if thresholds is None:
+        thresholds = [i / 100 for i in range(10, 0, -1)]
 
     Sites = set(S) | set(H0)
 
-    try:
+    os.makedirs(mst_dir, exist_ok=True)
 
+    # ---------------------------------------------
+    # Resume awareness
+    # ---------------------------------------------
+    completed_thresholds = set()
+
+    if os.path.exists(results_file):
+        try:
+            with open(results_file, "r") as f:
+                for line in f:
+                    rec = json.loads(line)
+                    completed_thresholds.add(rec["gap"])
+        except:
+            pass
+
+    remaining_thresholds = [
+        th for th in thresholds
+        if th not in completed_thresholds
+    ]
+
+    print("Remaining thresholds:", remaining_thresholds)
+
+    try:
         m = gp.Model("HubSelection_OPT")
 
         m.setParam("OutputFlag", 1 if verbose else 0)
-        m.setParam("MIPGap", mipgap)
 
+        # Let solve continue fully
+        # no MIPGap stopping here
+
+        # ---------------------------------------------
         # Variables
+        # ---------------------------------------------
         x = {
             i: m.addVar(vtype=GRB.BINARY, name=f"x_{i}")
             for i in Sites
@@ -206,25 +280,42 @@ def solve_gurobi_with_gap(
 
         m.update()
 
-        # Warm-start
-        if warm_start is not None:
-            for i in x:
-                if i in warm_start:
-                    x[i].start = warm_start[i]
+        # ---------------------------------------------
+        # Resume warm start from checkpoint
+        # ---------------------------------------------
+        if os.path.exists(checkpoint_file):
+            try:
+                with open(checkpoint_file, "r") as f:
+                    chk = json.load(f)
 
+                warm = chk.get("x", {})
+
+                print("Applying checkpoint warm-start...")
+
+                for i in x:
+                    key = str(i)
+                    if key in warm:
+                        x[i].Start = warm[key]
+
+            except Exception as err:
+                print(f"Checkpoint load failed: {err}")
+
+        # ---------------------------------------------
         # Objective
+        # ---------------------------------------------
         m.setObjective(
             gp.quicksum(U[j] for j in T),
             GRB.MAXIMIZE
         )
 
+        # ---------------------------------------------
         # Constraints
+        # ---------------------------------------------
         for j in T:
             m.addConstr(U[j] <= o[j])
             m.addConstr(U[j] <= e[j])
 
         for j in T:
-
             oc_set = set(OC.get(j, ()))
             ec_set = set(EC.get(j, ()))
 
@@ -247,15 +338,33 @@ def solve_gurobi_with_gap(
             if i in x:
                 m.addConstr(x[i] == 1)
 
+        # ---------------------------------------------
+        # Callback state
+        # ---------------------------------------------
+        m._x_vars = x
+        m._remaining_thresholds = remaining_thresholds
+        m._results_file = results_file
+        m._checkpoint_file = checkpoint_file
+        m._mst_dir = mst_dir
+
+        # ensure file exists
+        if not os.path.exists(results_file):
+            open(results_file, "w").close()
+
+        # ---------------------------------------------
         # Optimize
-        m.optimize()
+        # ---------------------------------------------
+        m.optimize(_gap_callback)
 
         status = m.Status
 
-        if status in [GRB.OPTIMAL, GRB.TIME_LIMIT, GRB.SUBOPTIMAL]:
-
+        if status in [
+            GRB.OPTIMAL,
+            GRB.TIME_LIMIT,
+            GRB.SUBOPTIMAL
+        ]:
             sol_x = {
-                i: int(x[i].X)
+                i: int(round(x[i].X))
                 for i in Sites
             }
 
@@ -277,95 +386,14 @@ def solve_gurobi_with_gap(
                 "model": m
             }
 
-        else:
-
-            return {
-                "status": status,
-                "hubs": set(),
-                "objval": None,
-                "x": {},
-                "model": m
-            }
+        return {
+            "status": status,
+            "hubs": set(),
+            "objval": None,
+            "x": {},
+            "model": m
+        }
 
     except gp.GurobiError as err:
         print(f"Gurobi error: {err}")
         raise
-def solve_gurobi_with_gap(S, H0, T, OC, EC, k, mipgap=0.01, warm_start=None, verbose=True):
-    Sites = set(S) | set(H0)
-
-    try:
-        m = gp.Model("HubSelection_OPT")
-        m.setParam("OutputFlag", 1 if verbose else 0)
-        m.setParam("MIPGap", mipgap)
-
-        # Variables
-        x = {i: m.addVar(vtype=GRB.BINARY, name=f"x_{i}") for i in Sites}
-        o = {j: m.addVar(vtype=GRB.BINARY, name=f"o_{j}") for j in T}
-        e = {j: m.addVar(vtype=GRB.BINARY, name=f"e_{j}") for j in T}
-        U = {j: m.addVar(vtype=GRB.BINARY, name=f"U_{j}") for j in T}
-
-        m.update()
-
-        if warm_start is not None:
-            for i in x:
-                if i in warm_start:
-                    x[i].start = warm_start[i]
-
-        # Objective
-        m.setObjective(gp.quicksum(U[j] for j in T), GRB.MAXIMIZE)
-
-        # Constraints
-        for j in T:
-            m.addConstr(U[j] <= o[j])
-            m.addConstr(U[j] <= e[j])
-
-        for j in T:
-            oc_set = set(OC.get(j, ()))
-            ec_set = set(EC.get(j, ()))
-
-            if oc_set:
-                m.addConstr(o[j] <= gp.quicksum(x[s] for s in oc_set))
-
-            if ec_set:
-                m.addConstr(e[j] <= gp.quicksum(x[s] for s in ec_set))
-
-        m.addConstr(gp.quicksum(x[i] for i in Sites) == k + len(H0))
-
-        for i in H0:
-            if i in x:
-                m.addConstr(x[i] == 1)
-
-        # Optimize
-        m.optimize()
-
-        status = m.Status
-
-        if status in [GRB.OPTIMAL, GRB.TIME_LIMIT, GRB.SUBOPTIMAL]:
-            sol_x = {i: int(x[i].X) for i in Sites}
-            selected_hubs = {i for i, val in sol_x.items() if val == 1}
-
-            try:
-                objval = m.ObjVal
-            except:
-                objval = None
-
-            return {
-                'status': status,
-                'hubs': selected_hubs,
-                'objval': objval,
-                'x': sol_x,
-                'model': m
-            }
-
-        else:
-            return {
-                'status': status,
-                'hubs': set(),
-                'objval': None,
-                'x': {},
-                'model': m
-            }
-
-    except gp.GurobiError as err:
-        print(f"Gurobi error: {err}")
-        raise  
