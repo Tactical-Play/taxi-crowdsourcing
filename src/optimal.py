@@ -105,96 +105,66 @@ import gurobipy as gp
 from gurobipy import GRB
 
 
-def _gap_callback(model, where):
+def _save_solution(model, x, gap, checkpoint_file, results_file, mst_dir):
     """
-    Callback that captures incumbent hub selections whenever
-    the MIP gap crosses specified thresholds.
+    Save current incumbent immediately.
     """
 
-    if where != GRB.Callback.MIP:
-        return
+    sol_x = {
+        i: int(round(x[i].X))
+        for i in x
+    }
 
-    try:
-        objbst = model.cbGet(GRB.Callback.MIP_OBJBST)
-        objbnd = model.cbGet(GRB.Callback.MIP_OBJBND)
+    selected_hubs = sorted([
+        i for i, val in sol_x.items()
+        if val == 1
+    ])
 
-        if objbst <= 0:
-            return
+    objval = model.ObjVal
+    objbound = model.ObjBound
 
-        gap = abs(objbst - objbnd) / abs(objbst)
+    record = {
+        "gap": gap,
+        "objective": objval,
+        "best_bound": objbound,
+        "num_hubs": len(selected_hubs),
+        "hubs": selected_hubs
+    }
 
-        crossed = []
+    # append durable log
+    with open(results_file, "a") as f:
+        f.write(json.dumps(record) + "\n")
 
-        for th in model._remaining_thresholds:
-            if gap <= th:
-                crossed.append(th)
+    # overwrite checkpoint
+    checkpoint = {
+        "last_gap": gap,
+        "objective": objval,
+        "best_bound": objbound,
+        "x": {
+            str(i): sol_x[i]
+            for i in sol_x
+        }
+    }
 
-        if not crossed:
-            return
+    with open(checkpoint_file, "w") as f:
+        json.dump(checkpoint, f, indent=2)
 
-        sol = model.cbGetSolution(model._x_vars)
+    # save mst
+    if mst_dir is not None:
+        mst_file = os.path.join(
+            mst_dir,
+            f"gap_{int(gap * 100)}.mst"
+        )
+        model.write(mst_file)
 
-        selected_hubs = sorted([
-            i for i, val in sol.items()
-            if val > 0.5
-        ])
+    print(
+        f"Saved {gap*100:.0f}% | "
+        f"Obj={objval:.2f} | "
+        f"Bound={objbound:.2f} | "
+        f"Hubs={len(selected_hubs)}"
+    )
 
-        for th in crossed:
-            print(f"\n=== Captured solution at {th*100:.0f}% gap ===")
-
-            record = {
-                "gap": th,
-                "objective": objbst,
-                "best_bound": objbnd,
-                "num_hubs": len(selected_hubs),
-                "hubs": selected_hubs
-            }
-
-            # -------------------------------------------------
-            # Append JSONL result immediately
-            # -------------------------------------------------
-            with open(model._results_file, "a") as f:
-                f.write(json.dumps(record) + "\n")
-
-            # -------------------------------------------------
-            # Update checkpoint JSON
-            # -------------------------------------------------
-            checkpoint = {
-                "last_gap": th,
-                "objective": objbst,
-                "best_bound": objbnd,
-                "hubs": selected_hubs,
-                "x": {
-                    str(i): int(round(sol[i]))
-                    for i in sol
-                }
-            }
-
-            with open(model._checkpoint_file, "w") as f:
-                json.dump(checkpoint, f, indent=2)
-
-            # -------------------------------------------------
-            # Save MST checkpoint
-            # -------------------------------------------------
-            if model._mst_dir is not None:
-                mst_file = os.path.join(
-                    model._mst_dir,
-                    f"gap_{int(th*100)}.mst"
-                )
-
-                try:
-                    model.write(mst_file)
-                    print(f"MST saved: {mst_file}")
-                except Exception as err:
-                    print(f"Could not save MST: {err}")
-
-        model._remaining_thresholds = [
-            th for th in model._remaining_thresholds
-            if th not in crossed
-        ]
-
-    except Exception as err:
-        print(f"Callback error: {err}")
+    return selected_hubs
 
 
 def solve_gurobi_checkpointed(
@@ -211,12 +181,9 @@ def solve_gurobi_checkpointed(
     thresholds=None
 ):
     """
-    Single-solve Gurobi optimization with callback checkpointing.
-
-    Captures hub selections at:
-        10%, 9%, ..., 1% MIP gap
-
-    Writes checkpoints immediately so crash recovery is possible.
+    Sequential continuation solve:
+    10% -> 9% -> ... -> 1%
+    using SAME model state.
     """
 
     if thresholds is None:
@@ -226,9 +193,6 @@ def solve_gurobi_checkpointed(
 
     os.makedirs(mst_dir, exist_ok=True)
 
-    # ---------------------------------------------
-    # Resume awareness
-    # ---------------------------------------------
     completed_thresholds = set()
 
     if os.path.exists(results_file):
@@ -240,24 +204,18 @@ def solve_gurobi_checkpointed(
         except:
             pass
 
-    remaining_thresholds = [
+    thresholds = [
         th for th in thresholds
         if th not in completed_thresholds
     ]
 
-    print("Remaining thresholds:", remaining_thresholds)
+    print("Remaining thresholds:", thresholds)
 
     try:
         m = gp.Model("HubSelection_OPT")
-
         m.setParam("OutputFlag", 1 if verbose else 0)
 
-        # Let solve continue fully
-        # no MIPGap stopping here
-
-        # ---------------------------------------------
         # Variables
-        # ---------------------------------------------
         x = {
             i: m.addVar(vtype=GRB.BINARY, name=f"x_{i}")
             for i in Sites
@@ -280,9 +238,7 @@ def solve_gurobi_checkpointed(
 
         m.update()
 
-        # ---------------------------------------------
-        # Resume warm start from checkpoint
-        # ---------------------------------------------
+        # Resume checkpoint warm start
         if os.path.exists(checkpoint_file):
             try:
                 with open(checkpoint_file, "r") as f:
@@ -300,17 +256,13 @@ def solve_gurobi_checkpointed(
             except Exception as err:
                 print(f"Checkpoint load failed: {err}")
 
-        # ---------------------------------------------
         # Objective
-        # ---------------------------------------------
         m.setObjective(
             gp.quicksum(U[j] for j in T),
             GRB.MAXIMIZE
         )
 
-        # ---------------------------------------------
         # Constraints
-        # ---------------------------------------------
         for j in T:
             m.addConstr(U[j] <= o[j])
             m.addConstr(U[j] <= e[j])
@@ -338,31 +290,33 @@ def solve_gurobi_checkpointed(
             if i in x:
                 m.addConstr(x[i] == 1)
 
-        # ---------------------------------------------
-        # Callback state
-        # ---------------------------------------------
-        m._x_vars = x
-        m._remaining_thresholds = remaining_thresholds
-        m._results_file = results_file
-        m._checkpoint_file = checkpoint_file
-        m._mst_dir = mst_dir
-
-        # ensure file exists
         if not os.path.exists(results_file):
             open(results_file, "w").close()
 
-        # ---------------------------------------------
-        # Optimize
-        # ---------------------------------------------
-        m.optimize(_gap_callback)
+        # CONTINUATION SOLVE
+        for gap in thresholds:
+
+            print(f"\n=== Solving to {gap*100:.0f}% gap ===")
+
+            m.Params.MIPGap = gap
+            m.optimize()
+
+            if m.SolCount == 0:
+                print(f"No feasible solution at {gap*100:.0f}%")
+                continue
+
+            _save_solution(
+                m,
+                x,
+                gap,
+                checkpoint_file,
+                results_file,
+                mst_dir
+            )
 
         status = m.Status
 
-        if status in [
-            GRB.OPTIMAL,
-            GRB.TIME_LIMIT,
-            GRB.SUBOPTIMAL
-        ]:
+        if m.SolCount > 0:
             sol_x = {
                 i: int(round(x[i].X))
                 for i in Sites
@@ -373,15 +327,10 @@ def solve_gurobi_checkpointed(
                 if val == 1
             }
 
-            try:
-                objval = m.ObjVal
-            except:
-                objval = None
-
             return {
                 "status": status,
                 "hubs": selected_hubs,
-                "objval": objval,
+                "objval": m.ObjVal,
                 "x": sol_x,
                 "model": m
             }
