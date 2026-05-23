@@ -1,0 +1,15 @@
+{
+    "date": "2008-02-04",
+    "num_hubs": 20,
+    "num_total_pkgs": 2007,
+    "delivered": 1939,
+    "success_rate_24h": 0.9661185849526657,
+    "success_rate_eod": 0.9661185849526657,
+    "success_num_24": 1939,
+    "success_num_eod": 1939,
+    "success_num_nodeadline": 1939,
+    "total_success_rate": 0.9661185849526657,
+    "avg_delivery_time_hours": 3.2910349830416594,
+    "avg_delivery_time_hours_24h": 3.2910349830416594,
+    "avg_delivery_time_hours_EOD": 3.2910349830416594
+}
