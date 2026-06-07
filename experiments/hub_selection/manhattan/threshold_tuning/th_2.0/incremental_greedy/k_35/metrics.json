@@ -1,0 +1,10 @@
+{
+    "algorithm": "incremental_greedy",
+    "k": 35,
+    "num_trips": 820613,
+    "trips_remaining": 193342,
+    "utility": 820400,
+    "utility_percent": 99.97404379409052,
+    "elapsed_time_seconds": 176.83694338798523,
+    "elapsed_time_minutes": 2.9472823897997538
+}
