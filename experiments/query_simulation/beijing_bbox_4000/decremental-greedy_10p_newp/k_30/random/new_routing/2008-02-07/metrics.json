@@ -1,0 +1,19 @@
+{
+    "date": "2008-02-07",
+    "num_hubs": 30,
+    "num_total_pkgs": 2081,
+    "delivered": 2049,
+    "avg_pkg_per_trip": 3.1594827586206895,
+    "standard_deviation_pkg_per_trip": 2.958840594472071,
+    "max_packages_in_one_trip": 10,
+    "trips_with_packages": 928,
+    "success_rate_24h": 0.9846227775108121,
+    "success_rate_eod": 0.9846227775108121,
+    "success_num_24": 2049,
+    "success_num_eod": 2049,
+    "success_num_nodeadline": 2049,
+    "total_success_rate": 0.9846227775108121,
+    "avg_delivery_time_hours": 3.890141392875251,
+    "avg_delivery_time_hours_24h": 3.890141392875251,
+    "avg_delivery_time_hours_EOD": 3.890141392875251
+}
