@@ -1,0 +1,10 @@
+{
+    "algorithm": "taxi_exp_2km",
+    "k": 130,
+    "num_trips": 123179,
+    "trips_remaining": 123179,
+    "utility": 91483,
+    "utility_percent": 74.2683411945218,
+    "elapsed_time_seconds": 1707.8965241909027,
+    "elapsed_time_minutes": 28.46494206984838
+}
