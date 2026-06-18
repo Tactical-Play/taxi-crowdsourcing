@@ -1,5 +1,5 @@
 from collections import defaultdict
-
+import time
 # 🔥 NEW: build reverse index once (call this before DG)
 def build_reverse_index(T, OC, EC):
     OC_rev = defaultdict(set)
@@ -126,3 +126,53 @@ def decremental_greedy(S, k, H0, T, OC, EC, o, e, MU, delta):
         )
 
     return H - H0
+
+def decremental_greedy_multi(
+    S, target_ks, H0,
+    T, OC, EC, o, e, MU, delta
+):
+
+    H = S.union(H0)
+
+    target_ks = sorted(target_ks, reverse=True)
+    smallest_k = min(target_ks)
+
+    results = {}
+
+    OC_rev, EC_rev = build_reverse_index(T, OC, EC)
+
+    initialize_dg(S, H0, T, OC, EC, o, e, MU, delta)
+
+    start_time = time.time()
+
+    while len(H) > smallest_k:
+
+        candidates = list(H - H0)
+
+        s_theta = min(
+            candidates,
+            key=lambda s: (MU[s], delta[s], -s)
+        )
+
+        H.remove(s_theta)
+
+        update_utilities_dg(
+            T, s_theta, OC, EC,
+            o, e, MU, delta,
+            OC_rev, EC_rev
+        )
+
+        current_k = len(H - H0)
+
+        if current_k in target_ks and current_k not in results:
+
+            results[current_k] = {
+                "hubs": set(H - H0),
+                "elapsed": time.time() - start_time
+            }
+
+            print(
+                f"Recorded solution for k={current_k}"
+            )
+
+    return results
