@@ -3,17 +3,17 @@
     "num_hubs": 50,
     "num_total_pkgs": 2967,
     "delivered": 2946,
-    "avg_pkg_per_trip": 2.7513711151736744,
-    "standard_deviation_pkg_per_trip": 2.634390219993029,
+    "avg_pkg_per_trip": 2.396808510638298,
+    "standard_deviation_pkg_per_trip": 2.314843505011414,
     "max_packages_in_one_trip": 10,
-    "trips_with_packages": 1641,
+    "trips_with_packages": 1880,
     "success_rate_24h": 0.9929221435793731,
     "success_rate_eod": 0.9929221435793731,
     "success_num_24": 2946,
     "success_num_eod": 2946,
     "success_num_nodeadline": 2946,
     "total_success_rate": 0.9929221435793731,
-    "avg_delivery_time_hours": 3.7645915034862716,
-    "avg_delivery_time_hours_24h": 3.7645915034862716,
-    "avg_delivery_time_hours_EOD": 3.7645915034862716
+    "avg_delivery_time_hours": 3.906838651574734,
+    "avg_delivery_time_hours_24h": 3.906838651574734,
+    "avg_delivery_time_hours_EOD": 3.906838651574734
 }
