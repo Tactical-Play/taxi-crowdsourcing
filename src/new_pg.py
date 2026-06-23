@@ -2,6 +2,7 @@ from collections import defaultdict
 from itertools import combinations
 
 def build_reverse_index(T, OC, EC):
+    print("building rverse index")
     OC_rev = defaultdict(set)
     EC_rev = defaultdict(set)
 
@@ -11,6 +12,7 @@ def build_reverse_index(T, OC, EC):
         for s in EC[tj]:
             EC_rev[s].add(tj)
 
+    print("...done")
     return OC_rev, EC_rev
 
 
@@ -114,3 +116,156 @@ def pairwise_greedy(S, k, H0, T, OC, EC):
         b -= len(H_theta)
 
     return H
+
+from collections import defaultdict
+import time
+from itertools import combinations
+
+def pairwise_greedy_multi(S, k_targets, H0, T, OC, EC):
+
+    H = set(H0)
+
+    k_targets = sorted(k_targets)
+
+    results = {}
+
+    # -----------------------------
+    # Build reverse index
+    # -----------------------------
+    OC_rev, EC_rev = build_reverse_index(T, OC, EC)
+
+    # -----------------------------
+    # Initialize state
+    # -----------------------------
+    max_tj = max(T) + 1
+
+    o = [0] * max_tj
+    e = [0] * max_tj
+
+    update_state(H0, OC_rev, EC_rev, o, e)
+
+    # -----------------------------
+    # Precompute candidates once
+    # -----------------------------
+    S_list = list(S)
+
+    all_pairs = (
+        [(s,) for s in S_list]
+        + list(combinations(S_list, 2))
+    )
+    print(f"|S| = {len(S):,}")
+    print(f"all_pairs = {len(all_pairs):,}")
+    start_time = time.time()
+
+    target_idx = 0
+
+    while target_idx < len(k_targets):
+
+        target_k = k_targets[target_idx]
+
+        print(f"\nWorking toward k={target_k}")
+
+        while len(H) < target_k:
+
+            print(
+                f"current hubs={len(H)} "
+                f"target={target_k}"
+            )
+
+            remaining_budget = target_k - len(H)
+
+            start_iter_time = time.time()
+            best_gain = -1
+            best_choice = None
+
+            num_candidates = len(all_pairs)
+
+            for idx, cand in enumerate(all_pairs):
+                if idx % 100000 == 0:
+                    elapsed = time.time() - start_iter_time
+            
+                    print(
+                        f"  scanned {idx:,}/{num_candidates:,} "
+                        f"({100*idx/num_candidates:.1f}%) "
+                        f"best_gain={best_gain} "
+                        f"elapsed={elapsed:.1f}s"
+                    )
+
+                if any(s in H for s in cand):
+                    continue
+
+                # IMPORTANT:
+                # prevents overshooting target_k
+                if len(cand) > remaining_budget:
+                    continue
+
+                if len(cand) == 1:
+
+                    gain = compute_pair_gain(
+                        cand[0],
+                        cand[0],
+                        T,
+                        OC_rev,
+                        EC_rev,
+                        o,
+                        e
+                    )
+
+                else:
+
+                    gain = compute_pair_gain(
+                        cand[0],
+                        cand[1],
+                        T,
+                        OC_rev,
+                        EC_rev,
+                        o,
+                        e
+                    )
+
+                if gain > best_gain:
+
+                    best_gain = gain
+                    best_choice = cand
+
+            if best_choice is None:
+
+                print(
+                    f"No feasible candidate "
+                    f"for target {target_k}"
+                )
+                break
+
+            print(
+                f"chosen={best_choice}, "
+                f"gain={best_gain}"
+            )
+
+            H_theta = set(best_choice)
+
+            update_state(
+                H_theta,
+                OC_rev,
+                EC_rev,
+                o,
+                e
+            )
+
+            H |= H_theta
+
+        # -----------------------------
+        # Save exact solution
+        # -----------------------------
+        results[target_k] = {
+            "hubs": H.copy(),
+            "elapsed": time.time() - start_time
+        }
+
+        print(
+            f"Saved solution for k={target_k} "
+            f"(actual hubs={len(H)})"
+        )
+
+        target_idx += 1
+
+    return results
