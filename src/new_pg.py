@@ -57,7 +57,7 @@ def update_state(H_theta, OC_rev, EC_rev, o, e):
 
 
 def pairwise_greedy(S, k, H0, T, OC, EC):
-
+    select_order = []
     H = set(H0)
 
     # 🔥 reverse index
@@ -106,6 +106,7 @@ def pairwise_greedy(S, k, H0, T, OC, EC):
             break
 
         print("chosen:", best_choice, "gain:", best_gain)
+        select_order.append(best_choice)
 
         H_theta = set(best_choice)
 
@@ -115,7 +116,11 @@ def pairwise_greedy(S, k, H0, T, OC, EC):
         H |= H_theta
         b -= len(H_theta)
 
+<<<<<<< HEAD
     return H
+=======
+    return select_order
+>>>>>>> d8d62160 (update)
 
 from collections import defaultdict
 import time
