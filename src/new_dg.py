@@ -72,11 +72,15 @@ def update_utilities_dg(T, s_theta, OC, EC, o, e, MU, delta, OC_rev, EC_rev):
 
 
 def initialize_dg(S, H0, T, OC, EC, o, e, MU, delta):
+    i=0
     for si in S.union(H0):
         MU[si] = 0
         delta[si] = 0
 
+    length=len(T)
     for tj in T:
+        i+=1
+        if i%1000==0: print(f'Initializing {i}th trip/{length}')
         o[tj], e[tj] = 1, 1
 
         if len(OC[tj]) == 1:
@@ -132,6 +136,7 @@ def decremental_greedy_multi(
     T, OC, EC, o, e, MU, delta
 ):
 
+    start_time = time.time()
     H = S.union(H0)
 
     target_ks = sorted(target_ks, reverse=True)
@@ -142,8 +147,6 @@ def decremental_greedy_multi(
     OC_rev, EC_rev = build_reverse_index(T, OC, EC)
 
     initialize_dg(S, H0, T, OC, EC, o, e, MU, delta)
-
-    start_time = time.time()
 
     while len(H) > smallest_k:
 
