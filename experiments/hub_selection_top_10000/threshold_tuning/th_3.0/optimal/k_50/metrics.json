@@ -1,0 +1,11 @@
+{
+    "algorithm": "optimal",
+    "k": 50,
+    "num_trips": 123179,
+    "trips_remaining": 46983,
+    "utility": 63350,
+    "utility_percent": 51.429220889,
+    "elapsed_time_seconds": 2089.68,
+    "elapsed_time_minutes": 34.828
+
+}
