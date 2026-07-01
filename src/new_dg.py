@@ -148,6 +148,7 @@ def decremental_greedy_multi(
 
     initialize_dg(S, H0, T, OC, EC, o, e, MU, delta)
 
+    print(time.time()-start_time)
     while len(H) > smallest_k:
 
         candidates = list(H - H0)
