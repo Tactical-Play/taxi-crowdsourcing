@@ -89,10 +89,21 @@ def remove_node(link_graph, v_remove):
 # -------------------------------
 # RANK NODES (Algorithm 1)
 # -------------------------------
-def rank_nodes(link_graph, top_k=10000):
+def rank_nodes(link_graph, top_k=10000, candidate_hubs=None):
 
-    # Step 1: frequency
-    freq = {v: sum(link_graph[v].values()) for v in link_graph}
+    # Restrict to candidate hubs if provided
+    if candidate_hubs is not None:
+        candidate_hubs = set(candidate_hubs)
+        freq = {
+            v: sum(link_graph[v].values())
+            for v in candidate_hubs
+            if v in link_graph
+        }
+    else:
+        freq = {
+            v: sum(link_graph[v].values())
+            for v in link_graph
+        }
 
     # Step 2: select top-k
     top_nodes = sorted(freq, key=freq.get, reverse=True)[:top_k]
@@ -105,21 +116,24 @@ def rank_nodes(link_graph, top_k=10000):
 
     influence = {}
 
-    # Step 5: compute IF for each node
-    for i,v in enumerate(top_nodes):
+    # Step 5: compute influence factor
+    for i, v in enumerate(top_nodes):
+
         if i % 100 == 0:
             print(f"Processing node {i}/{len(top_nodes)}")
+
         subgraph_removed = remove_node(subgraph, v)
 
         EnG, _, _ = compute_graph_entropy(subgraph_removed)
 
-        if EnG == 0:
-            influence[v] = 0
-        else:
-            influence[v] = node_entropy[v] / EnG
+        influence[v] = 0 if EnG == 0 else node_entropy[v] / EnG
 
     # Step 6: rank
-    ranked_nodes = sorted(influence, key=influence.get, reverse=True)
+    ranked_nodes = sorted(
+        influence,
+        key=influence.get,
+        reverse=True
+    )
 
     return ranked_nodes
 
@@ -127,17 +141,31 @@ def rank_nodes(link_graph, top_k=10000):
 # -------------------------------
 # HUB IDENTIFICATION (Algorithm 2)
 # -------------------------------
-def identify_hubs(G, ranked_nodes, threshold_km=3, max_hubs=None):
+def identify_hubs(
+    G,
+    ranked_nodes,
+    threshold_km=3,
+    max_hubs=None,
+    candidate_hubs=None
+):
+
+    if candidate_hubs is not None:
+        candidate_hubs = set(candidate_hubs)
+        remaining = [v for v in ranked_nodes if v in candidate_hubs]
+    else:
+        remaining = list(ranked_nodes)
 
     hubs = []
-    remaining = list(ranked_nodes)
 
     while remaining:
+
         if max_hubs is not None and len(hubs) >= max_hubs:
             print(f"Reached desired number of hubs: {max_hubs}")
             break
-        if len(hubs) % 100 == 0 and len(hubs)>0:
-            print(f"Hubs selected : {len(hubs)}")
+
+        if len(hubs) > 0 and len(hubs) % 100 == 0:
+            print(f"Hubs selected: {len(hubs)}")
+
         v = remaining.pop(0)
         hubs.append(v)
 
@@ -149,13 +177,20 @@ def identify_hubs(G, ranked_nodes, threshold_km=3, max_hubs=None):
 
             lon2, lat2 = G.nodes[u]['pos']
 
-            dist = haversine_distance(lat1, lon1, lat2, lon2)
+            dist = haversine_distance(
+                lat1, lon1,
+                lat2, lon2
+            )
 
             if dist >= threshold_km:
                 new_remaining.append(u)
 
         remaining = new_remaining
-        if max_hubs is not None and len(hubs) < max_hubs:
-          print(f"WARNING: Only {len(hubs)} hubs could be selected (target was {max_hubs})")
+
+    if max_hubs is not None and len(hubs) < max_hubs:
+        print(
+            f"WARNING: Only {len(hubs)} hubs could be selected "
+            f"(target was {max_hubs})"
+        )
 
     return hubs
